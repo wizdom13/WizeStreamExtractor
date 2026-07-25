@@ -20,6 +20,8 @@
 
 package org.schabi.newpipe.extractor.services.youtube;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.WireFormat;
 import com.grack.nanojson.JsonArray;
 import com.grack.nanojson.JsonBuilder;
 import com.grack.nanojson.JsonObject;
@@ -39,6 +41,7 @@ import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo;
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor;
+import org.schabi.newpipe.extractor.stream.AudioTrackType;
 import org.schabi.newpipe.extractor.stream.Description;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.Parser;
@@ -2395,6 +2398,92 @@ YoutubeParsingHelper {
 
     public static boolean isVisionOsStreamingUrl(@Nonnull final String url) {
         return Parser.isMatch(C_VISIONOS_PATTERN, url);
+    }
+
+    /**
+     * Extract the semantic audio track type from a YouTube format's base64url-encoded XTags.
+     *
+     * @param xtags the format's XTags value
+     * @return the extracted track type, or {@code null} if unavailable or malformed
+     */
+    @Nullable
+    public static AudioTrackType extractAudioTrackType(@Nullable final String xtags) {
+        if (isNullOrEmpty(xtags)) {
+            return null;
+        }
+
+        try {
+            final CodedInputStream input =
+                    CodedInputStream.newInstance(Base64.getUrlDecoder().decode(xtags));
+            while (!input.isAtEnd()) {
+                final int tag = input.readTag();
+                if (tag == 0) {
+                    break;
+                }
+
+                if (WireFormat.getTagFieldNumber(tag) == 1
+                        && WireFormat.getTagWireType(tag)
+                        == WireFormat.WIRETYPE_LENGTH_DELIMITED) {
+                    final String audioContentType = extractAudioContentType(input.readByteArray());
+                    if (audioContentType != null) {
+                        return audioTrackTypeFromAudioContentType(audioContentType);
+                    }
+                } else if (!input.skipField(tag)) {
+                    break;
+                }
+            }
+        } catch (final IOException | IllegalArgumentException ignored) {
+            // Malformed XTags are optional metadata and must not prevent stream extraction.
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String extractAudioContentType(@Nonnull final byte[] encodedPair)
+            throws IOException {
+        final CodedInputStream input = CodedInputStream.newInstance(encodedPair);
+        String key = null;
+        String value = null;
+        while (!input.isAtEnd()) {
+            final int tag = input.readTag();
+            if (tag == 0) {
+                break;
+            }
+
+            final int fieldNumber = WireFormat.getTagFieldNumber(tag);
+            if (WireFormat.getTagWireType(tag) == WireFormat.WIRETYPE_LENGTH_DELIMITED
+                    && fieldNumber == 1) {
+                key = input.readStringRequireUtf8();
+            } else if (WireFormat.getTagWireType(tag) == WireFormat.WIRETYPE_LENGTH_DELIMITED
+                    && fieldNumber == 2) {
+                value = input.readStringRequireUtf8();
+            } else if (!input.skipField(tag)) {
+                break;
+            }
+        }
+        return "acont".equals(key) ? value : null;
+    }
+
+    @Nullable
+    public static AudioTrackType audioTrackTypeFromAudioContentType(
+            @Nullable final String audioContentType) {
+        if (audioContentType == null) {
+            return null;
+        }
+
+        switch (audioContentType) {
+            case "original":
+                return AudioTrackType.ORIGINAL;
+            case "dubbed":
+            case "dubbed-auto":
+                return AudioTrackType.DUBBED;
+            case "descriptive":
+                return AudioTrackType.DESCRIPTIVE;
+            case "secondary":
+                return AudioTrackType.SECONDARY;
+            default:
+                return null;
+        }
     }
 
     /**

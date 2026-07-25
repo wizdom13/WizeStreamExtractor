@@ -1,6 +1,7 @@
 package org.schabi.newpipe.extractor.services.youtube.extractors;
 
 import org.schabi.newpipe.extractor.services.youtube.ItagItem;
+import org.schabi.newpipe.extractor.stream.AudioTrackType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -34,6 +35,8 @@ final class ItagInfo implements Serializable {
     private String audioTrackName;
     @Nullable
     private String audioLocale;
+    @Nullable
+    private AudioTrackType audioTrackType;
 
     /**
      * Creates a new {@code ItagInfo} instance.
@@ -119,10 +122,12 @@ final class ItagInfo implements Serializable {
 
     void setAudioTrackInfo(@Nullable final String audioTrackId,
                            @Nullable final String audioTrackName,
-                           @Nullable final String audioLocale) {
+                           @Nullable final String audioLocale,
+                           @Nullable final AudioTrackType audioTrackType) {
         this.audioTrackId = audioTrackId;
         this.audioTrackName = audioTrackName;
         this.audioLocale = audioLocale;
+        this.audioTrackType = audioTrackType;
     }
 
     @Nullable
@@ -138,5 +143,10 @@ final class ItagInfo implements Serializable {
     @Nullable
     String getAudioLocale() {
         return audioLocale;
+    }
+
+    @Nullable
+    AudioTrackType getAudioTrackType() {
+        return audioTrackType;
     }
 }

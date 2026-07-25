@@ -36,6 +36,8 @@ public final class AudioStream extends Stream {
     private String audioTrackId;
     private String audioTrackName;
     private String audioLocale;
+    @Nullable
+    private final AudioTrackType audioTrackType;
 
     // Fields for DASH
     private int itag = ITAG_NOT_AVAILABLE_OR_NOT_APPLICABLE;
@@ -75,6 +77,8 @@ public final class AudioStream extends Stream {
         private String audioTrackId;
         private String audioTrackName;
         private String audioLocale;
+        @Nullable
+        private AudioTrackType audioTrackType;
         /**
          * Create a new {@link Builder} instance with its default values.
          */
@@ -258,6 +262,11 @@ public final class AudioStream extends Stream {
             return this;
         }
 
+        public Builder setAudioTrackType(@Nullable final AudioTrackType audioTrackType) {
+            this.audioTrackType = audioTrackType;
+            return this;
+        }
+
         /**
          * Build an {@link AudioStream} using the builder's current values.
          *
@@ -292,7 +301,7 @@ public final class AudioStream extends Stream {
 
             return new AudioStream(id, content, isUrl, mediaFormat, deliveryMethod, averageBitrate, codec,
                     bitrate, initStart, initEnd, indexStart, indexEnd, manifestUrl, itagItem,
-                    quality, audioTrackId, audioTrackName, audioLocale);
+                    quality, audioTrackId, audioTrackName, audioLocale, audioTrackType);
         }
     }
 
@@ -332,7 +341,8 @@ public final class AudioStream extends Stream {
                         @Nullable final ItagItem itagItem, String quality,
                         @Nullable final String audioTrackId,
                         @Nullable final String audioTrackName,
-                        @Nullable final String audioLocale) {
+                        @Nullable final String audioLocale,
+                        @Nullable final AudioTrackType audioTrackType) {
         super(id, content, isUrl, format, deliveryMethod, manifestUrl);
         if (itagItem != null) {
             this.itagItem = itagItem;
@@ -364,6 +374,7 @@ public final class AudioStream extends Stream {
         this.audioTrackId = audioTrackId;
         this.audioTrackName = audioTrackName;
         this.audioLocale = audioLocale;
+        this.audioTrackType = audioTrackType;
     }
 
     /**
@@ -373,7 +384,8 @@ public final class AudioStream extends Stream {
     public boolean equalStats(final Stream cmp) {
         return super.equalStats(cmp) && cmp instanceof AudioStream
                 && averageBitrate == ((AudioStream) cmp).averageBitrate
-                && Objects.equals(audioTrackId, ((AudioStream) cmp).audioTrackId);
+                && Objects.equals(audioTrackId, ((AudioStream) cmp).audioTrackId)
+                && audioTrackType == ((AudioStream) cmp).audioTrackType;
     }
 
     /**
@@ -484,6 +496,16 @@ public final class AudioStream extends Stream {
     @Nullable
     public String getAudioLocale() {
         return audioLocale;
+    }
+
+    /**
+     * Get the semantic type of this audio track.
+     *
+     * @return the track type, or {@code null} when the service did not provide one
+     */
+    @Nullable
+    public AudioTrackType getAudioTrackType() {
+        return audioTrackType;
     }
 
     /**
