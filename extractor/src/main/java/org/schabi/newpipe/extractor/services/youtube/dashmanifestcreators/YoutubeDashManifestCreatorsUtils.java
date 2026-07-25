@@ -38,9 +38,11 @@ import java.util.Objects;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.addYoutubeHeaders;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getAndroidUserAgent;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getIosUserAgent;
+import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getVisionOsUserAgent;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isAndroidStreamingUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isIosStreamingUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isTvHtml5SimplyEmbeddedPlayerStreamingUrl;
+import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isVisionOsStreamingUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isWebStreamingUrl;
 import static org.schabi.newpipe.extractor.utils.Utils.isNullOrEmpty;
 
@@ -570,6 +572,7 @@ public final class YoutubeDashManifestCreatorsUtils {
                 || isTvHtml5SimplyEmbeddedPlayerStreamingUrl(baseStreamingUrl);
         final boolean isAndroidStreamingUrl = isAndroidStreamingUrl(baseStreamingUrl);
         final boolean isIosStreamingUrl = isIosStreamingUrl(baseStreamingUrl);
+        final boolean isVisionOsStreamingUrl = isVisionOsStreamingUrl(baseStreamingUrl);
         if (isHtml5StreamingUrl) {
             baseStreamingUrl += ALR_YES;
         }
@@ -582,17 +585,22 @@ public final class YoutubeDashManifestCreatorsUtils {
                 return getStreamingWebUrlWithoutRedirects(downloader, baseStreamingUrl,
                         mimeTypeExpected);
             }
-        } else if (isAndroidStreamingUrl || isIosStreamingUrl) {
+        } else if (isAndroidStreamingUrl || isIosStreamingUrl || isVisionOsStreamingUrl) {
             try {
                 final Map<String, List<String>> headers = new HashMap<>();
                 headers.put("User-Agent", Collections.singletonList(
-                        isAndroidStreamingUrl ? getAndroidUserAgent(null)
-                                : getIosUserAgent(null)));
+                        isAndroidStreamingUrl
+                                ? getAndroidUserAgent(null)
+                                : isIosStreamingUrl
+                                        ? getIosUserAgent(null)
+                                        : getVisionOsUserAgent(null)));
                 final byte[] emptyBody = "".getBytes(StandardCharsets.UTF_8);
                 return downloader.post(baseStreamingUrl, headers, emptyBody);
             } catch (final IOException | ExtractionException e) {
-                throw new CreationException("Could not get the "
-                        + (isIosStreamingUrl ? "ANDROID" : "IOS") + " streaming URL response", e);
+                final String clientName = isAndroidStreamingUrl
+                        ? "ANDROID" : isIosStreamingUrl ? "IOS" : "VISIONOS";
+                throw new CreationException("Could not get the " + clientName
+                        + " streaming URL response", e);
             }
         }
 
