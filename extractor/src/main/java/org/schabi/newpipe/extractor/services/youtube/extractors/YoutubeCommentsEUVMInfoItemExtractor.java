@@ -159,9 +159,11 @@ class YoutubeCommentsEUVMInfoItemExtractor implements CommentsInfoItemExtractor 
     @Nonnull
     @Override
     public String getUploaderAvatarUrl() throws ParsingException {
-        return getImagesFromThumbnailsArray(commentEntityPayload.getObject("avatar")
+        final List<Image> uploaderAvatars = getImagesFromThumbnailsArray(
+                commentEntityPayload.getObject("avatar")
                 .getObject("image")
-                .getArray("sources")).get(0).getUrl();
+                .getArray("sources"));
+        return uploaderAvatars.isEmpty() ? "" : uploaderAvatars.get(0).getUrl();
     }
 
     @Override

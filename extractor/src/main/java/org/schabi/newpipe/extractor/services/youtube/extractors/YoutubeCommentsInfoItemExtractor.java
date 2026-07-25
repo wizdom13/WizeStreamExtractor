@@ -207,7 +207,8 @@ public class YoutubeCommentsInfoItemExtractor implements CommentsInfoItemExtract
     @Nonnull
     @Override
     public String getUploaderAvatarUrl() throws ParsingException {
-        return getAuthorThumbnails().get(0).getUrl();
+        final List<Image> authorThumbnails = getAuthorThumbnails();
+        return authorThumbnails.isEmpty() ? "" : authorThumbnails.get(0).getUrl();
     }
 
     @Override
