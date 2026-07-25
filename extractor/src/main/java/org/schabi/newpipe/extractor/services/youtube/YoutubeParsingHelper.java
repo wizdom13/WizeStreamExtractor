@@ -260,6 +260,7 @@ YoutubeParsingHelper {
             Pattern.compile("&c=TVHTML5_SIMPLY_EMBEDDED_PLAYER");
     private static final Pattern C_ANDROID_PATTERN = Pattern.compile("&c=(?:ANDROID|ANDROID_VR)");
     private static final Pattern C_IOS_PATTERN = Pattern.compile("&c=IOS");
+    private static final Pattern C_VISIONOS_PATTERN = Pattern.compile("&c=VISIONOS");
 
     private static final Set<String> GOOGLE_URLS = Set.of("google.", "m.google.", "www.google.");
     private static final Set<String> INVIDIOUS_URLS = Set.of("invidio.us", "dev.invidio.us",
@@ -1282,6 +1283,16 @@ YoutubeParsingHelper {
                 IOS_YOUTUBE_KEY, endPartOfUrlRequest, callback);
     }
 
+    public static CancellableCall getJsonVisionOsPostResponseAsync(
+            final String endpoint,
+            final byte[] body,
+            @Nonnull final Localization localization,
+            @Nullable final String endPartOfUrlRequest,
+            final Downloader.AsyncCallback callback) throws IOException, ExtractionException {
+        return getMobilePostResponseAsync(endpoint, body, localization,
+                getVisionOsUserAgent(localization), IOS_YOUTUBE_KEY, endPartOfUrlRequest, callback);
+    }
+
     private static JsonObject getMobilePostResponse(
             final String endpoint,
             final byte[] body,
@@ -1468,6 +1479,40 @@ YoutubeParsingHelper {
                 .object("user")
                 // TODO: provide a way to enable restricted mode with:
                 //  .value("enableSafetyMode", boolean)
+                .value("lockedSafetyMode", false)
+                .end()
+                .end();
+        // @formatter:on
+    }
+
+    @Nonnull
+    public static JsonBuilder<JsonObject> prepareVisionOsJsonBuilder(
+            @Nonnull final Localization localization,
+            @Nonnull final ContentCountry contentCountry,
+            @Nonnull final String visitorData) {
+        // @formatter:off
+        return JsonObject.builder()
+                .object("context")
+                .object("client")
+                .value("clientName", VISIONOS_CLIENT_NAME)
+                .value("clientVersion", VISIONOS_CLIENT_VERSION)
+                .value("deviceMake", "Apple")
+                .value("deviceModel", VISIONOS_DEVICE_MODEL)
+                .value("clientScreen", WATCH_CLIENT_SCREEN)
+                .value("platform", MOBILE_CLIENT_PLATFORM)
+                .value("osName", "visionOS")
+                .value("osVersion", VISIONOS_VERSION)
+                .value("visitorData", visitorData)
+                .value("hl", localization.getLocalizationCode())
+                .value("gl", contentCountry.getCountryCode())
+                .value("utcOffsetMinutes", 0)
+                .end()
+                .object("request")
+                .array("internalExperimentFlags")
+                .end()
+                .value("useSsl", true)
+                .end()
+                .object("user")
                 .value("lockedSafetyMode", false)
                 .end()
                 .end();
@@ -1748,6 +1793,15 @@ YoutubeParsingHelper {
         return "com.google.ios.youtube/" + IOS_YOUTUBE_CLIENT_VERSION
                 + "(" + IOS_DEVICE_MODEL + "; U; CPU iOS "
                 + IOS_USER_AGENT_VERSION + " like Mac OS X; "
+                + (localization != null ? localization : Localization.DEFAULT).getCountryCode()
+                + ")";
+    }
+
+    @Nonnull
+    public static String getVisionOsUserAgent(@Nullable final Localization localization) {
+        return "com.google.visionos.youtube/" + VISIONOS_CLIENT_VERSION + "("
+                + VISIONOS_DEVICE_MODEL + "; U; CPU visionOS " + VISIONOS_USER_AGENT_VERSION
+                + " like Mac OS X; "
                 + (localization != null ? localization : Localization.DEFAULT).getCountryCode()
                 + ")";
     }
@@ -2337,6 +2391,10 @@ YoutubeParsingHelper {
      */
     public static boolean isIosStreamingUrl(@Nonnull final String url) {
         return Parser.isMatch(C_IOS_PATTERN, url);
+    }
+
+    public static boolean isVisionOsStreamingUrl(@Nonnull final String url) {
+        return Parser.isMatch(C_VISIONOS_PATTERN, url);
     }
 
     /**
