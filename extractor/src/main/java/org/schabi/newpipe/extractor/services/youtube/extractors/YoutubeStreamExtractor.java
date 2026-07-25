@@ -929,7 +929,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         final Map<String, String> audioTrackUrls = new LinkedHashMap<>();
         final Map<String, String> audioTrackNames = new LinkedHashMap<>();
         final Map<String, String> audioTrackLocales = new LinkedHashMap<>();
-        final Map<String, String> audioTrackAconts = new LinkedHashMap<>();
+        final Map<String, AudioTrackType> audioTrackTypes = new LinkedHashMap<>();
 
         for (int i = 0; i < lines.length; i++) {
             final String line = lines[i].trim();
@@ -961,7 +961,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                 }
             }
 
-            String acont = extractHlsXtagsValue(streamUrl, "acont");
+            final AudioTrackType audioTrackType = extractHlsAudioTrackType(streamUrl);
 
             if (resolution != null && !resolution.isEmpty()) {
                 final String[] resParts = resolution.split("x");
@@ -974,21 +974,17 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                 if (audioContentId != null && !audioContentId.isEmpty()) {
                     audioTrackId = audioContentId;
                     final String langPart = audioContentId.split("\\.")[0];
-                    audioLocale = langPart.split("-")[0];
-                    if ("original".equals(acont)) {
-                        audioTrackName = langPart + " (original)";
-                    } else {
-                        audioTrackName = langPart;
-                    }
+                    audioLocale = langPart;
+                    audioTrackName = langPart;
 
                     if (!audioTrackUrls.containsKey(audioTrackId)
-                            || "original".equals(acont)) {
+                            || audioTrackType == AudioTrackType.ORIGINAL) {
                         audioTrackUrls.put(audioTrackId, streamUrl);
                     }
                     audioTrackNames.put(audioTrackId, audioTrackName);
                     audioTrackLocales.put(audioTrackId, audioLocale);
-                    if (acont != null) {
-                        audioTrackAconts.put(audioTrackId, acont);
+                    if (audioTrackType != null) {
+                        audioTrackTypes.put(audioTrackId, audioTrackType);
                     }
                 }
 
@@ -1048,7 +1044,11 @@ public class YoutubeStreamExtractor extends StreamExtractor {
             }
             if (language != null) {
                 audioBuilder.setAudioTrackId(language);
-                audioBuilder.setAudioLocale(language.split("-")[0]);
+                audioBuilder.setAudioLocale(language);
+            }
+            final AudioTrackType audioTrackType = extractHlsAudioTrackType(uri);
+            if (audioTrackType != null) {
+                audioBuilder.setAudioTrackType(audioTrackType);
             }
             cachedAudioStreams.add(audioBuilder.build());
         }
@@ -1059,6 +1059,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                 final String url = entry.getValue();
                 final String trackName = audioTrackNames.get(trackId);
                 final String locale = audioTrackLocales.get(trackId);
+                final AudioTrackType trackType = audioTrackTypes.get(trackId);
 
                 final AudioStream.Builder audioBuilder = new AudioStream.Builder()
                         .setId("hls-" + videoId + "-audio-" + trackId)
@@ -1066,7 +1067,8 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                         .setMediaFormat(MediaFormat.M4A)
                         .setDeliveryMethod(DeliveryMethod.HLS)
                         .setAudioTrackId(trackId)
-                        .setAudioLocale(locale);
+                        .setAudioLocale(locale)
+                        .setAudioTrackType(trackType);
                 if (trackName != null) {
                     audioBuilder.setAudioTrackName(trackName);
                 }
@@ -1076,18 +1078,21 @@ public class YoutubeStreamExtractor extends StreamExtractor {
     }
 
     @Nullable
-    private static String extractHlsXtagsValue(@Nonnull final String url,
-                                                 @Nonnull final String key) {
+    private static AudioTrackType extractHlsAudioTrackType(@Nonnull final String url) {
         try {
             final String decoded = java.net.URLDecoder.decode(url, "UTF-8");
             final java.util.regex.Matcher m = java.util.regex.Pattern
                     .compile("xtags=([^/]+)").matcher(decoded);
             if (m.find()) {
                 final String xtags = m.group(1);
+                final AudioTrackType encodedType = extractAudioTrackType(xtags);
+                if (encodedType != null) {
+                    return encodedType;
+                }
                 for (final String part : xtags.split(":")) {
                     final String[] kv = part.split("=", 2);
-                    if (kv.length == 2 && kv[0].equals(key)) {
-                        return kv[1];
+                    if (kv.length == 2 && "acont".equals(kv[0])) {
+                        return audioTrackTypeFromAudioContentType(kv[1]);
                     }
                 }
             }
@@ -2119,7 +2124,8 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                         .setItagItem(itagItem)
                         .setAudioTrackId(itagInfo.getAudioTrackId())
                         .setAudioTrackName(itagInfo.getAudioTrackName())
-                        .setAudioLocale(itagInfo.getAudioLocale());
+                        .setAudioLocale(itagInfo.getAudioLocale())
+                        .setAudioTrackType(itagInfo.getAudioTrackType());
             } catch (ParsingException e) {
                 throw new RuntimeException(e);
             }
@@ -2243,9 +2249,11 @@ public class YoutubeStreamExtractor extends StreamExtractor {
             final String audioTrackId = audioTrack.getString("id");
             final String displayName = audioTrack.getString("displayName");
             final String langPart = audioTrackId.split("\\.")[0];
-            final String audioLocale = langPart.split("-")[0];
+            final String audioLocale = langPart;
             final String audioTrackName = isNullOrEmpty(displayName) ? langPart : displayName;
-            itagInfo.setAudioTrackInfo(audioTrackId, audioTrackName, audioLocale);
+            final AudioTrackType audioTrackType =
+                    extractAudioTrackType(formatData.getString("xtags"));
+            itagInfo.setAudioTrackInfo(audioTrackId, audioTrackName, audioLocale, audioTrackType);
         }
     }
 
