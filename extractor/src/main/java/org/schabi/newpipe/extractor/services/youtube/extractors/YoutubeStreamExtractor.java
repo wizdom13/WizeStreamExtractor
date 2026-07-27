@@ -779,10 +779,35 @@ public class YoutubeStreamExtractor extends StreamExtractor {
 
         return streamingDataObjects.stream()
                 .filter(Objects::nonNull)
-                .map(streamingDataObject -> streamingDataObject.getString(manifestKey) + "?mpd_version=7")
-                .filter(Objects::nonNull)
+                .map(streamingDataObject ->
+                        streamingDataObject.getString(manifestKey, EMPTY_STRING))
+                .filter(StringUtils::isNotBlank)
+                .map(manifestUrl -> "dash".equals(manifestType)
+                        ? appendMpdVersion(manifestUrl)
+                        : manifestUrl)
                 .findFirst()
                 .orElse(EMPTY_STRING);
+    }
+
+    @Nonnull
+    private static String appendMpdVersion(@Nonnull final String manifestUrl) {
+        final int fragmentStart = manifestUrl.indexOf('#');
+        final String url = fragmentStart < 0
+                ? manifestUrl
+                : manifestUrl.substring(0, fragmentStart);
+        final String fragment = fragmentStart < 0
+                ? EMPTY_STRING
+                : manifestUrl.substring(fragmentStart);
+        final String separator;
+        if (!url.contains("?")) {
+            separator = "?";
+        } else if (url.endsWith("?") || url.endsWith("&")) {
+            separator = EMPTY_STRING;
+        } else {
+            separator = "&";
+        }
+
+        return url + separator + "mpd_version=7" + fragment;
     }
 
     // Cache for batch-processed streams
