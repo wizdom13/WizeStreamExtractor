@@ -56,7 +56,8 @@ public class YoutubeMusicSongOrVideoInfoItemExtractor implements StreamInfoItemE
 
     @Override
     public StreamType getStreamType() {
-        return StreamType.VIDEO_STREAM;
+        return searchType.equals(MUSIC_SONGS)
+                ? StreamType.AUDIO_STREAM : StreamType.VIDEO_STREAM;
     }
 
     @Override
