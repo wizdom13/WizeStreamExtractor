@@ -44,6 +44,11 @@ public class YoutubeShortsInfoItemExtractor implements StreamInfoItemExtractor {
     }
 
     @Override
+    public boolean isShortFormContent() {
+        return true;
+    }
+
+    @Override
     public long getDuration() throws ParsingException {
         return 0;
     }
