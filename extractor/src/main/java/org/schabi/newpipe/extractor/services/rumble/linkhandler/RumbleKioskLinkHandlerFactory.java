@@ -50,4 +50,14 @@ public final class RumbleKioskLinkHandlerFactory extends ListLinkHandlerFactory 
                 throw new ParsingException("Unknown Rumble kiosk: " + id);
         }
     }
+
+    @Override
+    public boolean onAcceptUrl(final String url) {
+        try {
+            getId(url);
+            return true;
+        } catch (final ParsingException e) {
+            return false;
+        }
+    }
 }
