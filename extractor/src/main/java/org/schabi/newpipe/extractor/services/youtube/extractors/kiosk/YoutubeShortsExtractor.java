@@ -3,7 +3,7 @@ package org.schabi.newpipe.extractor.services.youtube.extractors.kiosk;
 import com.grack.nanojson.JsonArray;
 import com.grack.nanojson.JsonObject;
 
-import org.schabi.newpipe.extractor.InfoItemsPage;
+import org.schabi.newpipe.extractor.ListExtractor.InfoItemsPage;
 import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
