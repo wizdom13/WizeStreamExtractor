@@ -24,6 +24,7 @@ import org.schabi.newpipe.extractor.downloader.Downloader;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.localization.Localization;
+import org.schabi.newpipe.extractor.services.youtube.YoutubeSessionPoTokenProvider;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,6 +46,11 @@ public final class NewPipe {
     private static Downloader downloader;
     private static Localization preferredLocalization;
     private static ContentCountry preferredContentCountry;
+    private static String youtubePlayerClient = "web_safari";
+    @Nullable
+    private static YoutubeSessionPoTokenProvider youtubeSessionPoTokenProvider;
+    @Nullable
+    private static WebViewAvailabilityChecker webViewAvailabilityChecker;
 
     private NewPipe() {
 
@@ -159,6 +165,43 @@ public final class NewPipe {
 
     public static void setPreferredContentCountry(final ContentCountry preferredContentCountry) {
         NewPipe.preferredContentCountry = preferredContentCountry;
+    }
+
+    public static String getYoutubePlayerClient() {
+        return youtubePlayerClient;
+    }
+
+    public static void setYoutubePlayerClient(final String youtubePlayerClient) {
+        if ("mweb".equals(youtubePlayerClient)
+                || "web_safari".equals(youtubePlayerClient)
+                || "android_vr".equals(youtubePlayerClient)
+                || "tv_downgraded".equals(youtubePlayerClient)) {
+            NewPipe.youtubePlayerClient = youtubePlayerClient;
+        } else {
+            NewPipe.youtubePlayerClient = "web_safari";
+        }
+    }
+
+    public static void setYoutubeSessionPoTokenProvider(
+            @Nullable final YoutubeSessionPoTokenProvider provider) {
+        youtubeSessionPoTokenProvider = provider;
+    }
+
+    @Nullable
+    public static YoutubeSessionPoTokenProvider getYoutubeSessionPoTokenProvider() {
+        return youtubeSessionPoTokenProvider;
+    }
+
+    public static void setWebViewAvailabilityChecker(
+            @Nullable final WebViewAvailabilityChecker checker) {
+        webViewAvailabilityChecker = checker;
+    }
+
+    public static void checkWebViewAvailable() throws ExtractionException {
+        final WebViewAvailabilityChecker checker = webViewAvailabilityChecker;
+        if (checker != null) {
+            checker.checkWebViewAvailable();
+        }
     }
 
     public static void trustEveryone() {
