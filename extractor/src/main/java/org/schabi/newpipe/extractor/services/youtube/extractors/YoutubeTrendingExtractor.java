@@ -195,7 +195,7 @@ public class YoutubeTrendingExtractor extends KioskExtractor<StreamInfoItem> {
         return new InfoItemsPage<>(collector, null);
     }
 
-    private JsonObject getTrendingTabRenderer() throws ParsingException {
+    protected final JsonObject getTrendingTabRenderer() throws ParsingException {
         return initialData.getObject("contents")
                 .getObject("twoColumnBrowseResultsRenderer")
                 .getArray("tabs")

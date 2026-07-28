@@ -40,6 +40,7 @@ import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeSubscript
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeSuggestionExtractor;
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeTrendingExtractor;
 import org.schabi.newpipe.extractor.services.youtube.extractors.kiosk.YoutubeLiveExtractor;
+import org.schabi.newpipe.extractor.services.youtube.extractors.kiosk.YoutubeShortsExtractor;
 import org.schabi.newpipe.extractor.services.youtube.extractors.kiosk.YoutubeTrendingGamingVideosExtractor;
 import org.schabi.newpipe.extractor.services.youtube.extractors.kiosk.YoutubeTrendingMoviesAndShowsTrailersExtractor;
 import org.schabi.newpipe.extractor.services.youtube.extractors.kiosk.YoutubeTrendingMusicExtractor;
@@ -50,6 +51,7 @@ import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeComments
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeLiveLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubePlaylistLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory;
+import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeShortsLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeStreamLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeTrendingGamingVideosLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeTrendingLinkHandlerFactory;
@@ -172,6 +174,7 @@ public class YoutubeService extends StreamingService {
         final KioskList list = new KioskList(this);
 
         final ListLinkHandlerFactory liveLHF = YoutubeLiveLinkHandlerFactory.INSTANCE;
+        final ListLinkHandlerFactory shortsLHF = YoutubeShortsLinkHandlerFactory.INSTANCE;
         final ListLinkHandlerFactory podcastsLHF =
                 YoutubeTrendingPodcastsEpisodesLinkHandlerFactory.INSTANCE;
         final ListLinkHandlerFactory gamingLHF =
@@ -189,6 +192,14 @@ public class YoutubeService extends StreamingService {
                             id),
                     liveLHF,
                     YoutubeLiveLinkHandlerFactory.KIOSK_ID
+            );
+            list.addKioskEntry(
+                    (streamingService, url, id) -> new YoutubeShortsExtractor(
+                            YoutubeService.this,
+                            shortsLHF.fromUrl(url),
+                            id),
+                    shortsLHF,
+                    YoutubeShortsLinkHandlerFactory.KIOSK_ID
             );
             list.addKioskEntry(
                     (streamingService, url, id) -> new YoutubeTrendingPodcastsEpisodesExtractor(
