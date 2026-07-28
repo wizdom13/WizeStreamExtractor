@@ -2,6 +2,7 @@ package org.schabi.newpipe.extractor.services.rumble.linkhandler;
 
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandlerFactory;
+import org.schabi.newpipe.extractor.search.filter.FilterItem;
 import org.schabi.newpipe.extractor.services.rumble.RumbleService;
 
 import java.net.URI;
@@ -43,8 +44,8 @@ public final class RumbleChannelLinkHandlerFactory extends ListLinkHandlerFactor
 
     @Override
     public String getUrl(final String id,
-                         final List<String> contentFilter,
-                         final String sortFilter) {
+                         final List<FilterItem> contentFilter,
+                         final List<FilterItem> sortFilter) {
         return RumbleService.BASE_URL + "/" + id;
     }
 
