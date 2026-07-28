@@ -3,6 +3,7 @@ package org.schabi.newpipe.extractor.services.youtube.extractors;
 import com.grack.nanojson.JsonArray;
 import com.grack.nanojson.JsonObject;
 
+import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.downloader.Downloader;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
@@ -61,29 +62,18 @@ public final class YoutubeDiagnosticStreamExtractor
 
         final StringBuilder summary = new StringBuilder(
                 "YouTube player fallback diagnostics: ");
-        appendClient(summary, "android", "androidPlayerResponse",
-                "androidStreamingData", requestedVideoId);
-        appendClient(summary, "ios", "iosPlayerResponse",
-                "iosStreamingData", requestedVideoId);
-        appendClient(summary, "safari", "safariPlayerResponse",
-                "safariStreamingData", requestedVideoId);
-        appendClient(summary, "tvhtml5", "tvHtml5EmbedPlayerResponse",
-                "tvHtml5SimplyEmbedStreamingData", requestedVideoId);
+        appendSelectedPlayer(summary, requestedVideoId);
+        appendStreamingData(summary, "web", "webStreamingData");
+        appendStreamingData(summary, "mweb", "mwebStreamingData");
+        appendResponseState(summary, "next", "nextResponse");
         appendErrors(summary);
         return summary.toString();
     }
 
-    private void appendClient(@Nonnull final StringBuilder summary,
-                              @Nonnull final String client,
-                              @Nonnull final String responseField,
-                              @Nonnull final String streamingDataField,
-                              @Nonnull final String requestedVideoId) {
-        if (summary.charAt(summary.length() - 1) != ' ') {
-            summary.append("; ");
-        }
-
-        final JsonObject response = getPrivateJsonObject(responseField);
-        JsonObject streamingData = getPrivateJsonObject(streamingDataField);
+    private void appendSelectedPlayer(@Nonnull final StringBuilder summary,
+                                      @Nonnull final String requestedVideoId) {
+        final JsonObject response = playerResponse;
+        JsonObject streamingData = getPrivateJsonObject("configuredStreamingData");
         if ((streamingData == null || streamingData.isEmpty()) && response != null) {
             streamingData = response.getObject("streamingData");
         }
@@ -106,9 +96,8 @@ public final class YoutubeDiagnosticStreamExtractor
         final JsonArray adaptiveFormats = streamingDataPresent
                 ? streamingData.getArray("adaptiveFormats") : null;
 
-        summary.append(client).append("{")
-                .append("response=").append(responseReceived)
-                .append(",selected=").append(responseReceived && playerResponse == response)
+        summary.append("selected{client=").append(NewPipe.getYoutubePlayerClient())
+                .append(",response=").append(responseReceived)
                 .append(",videoIdMatch=").append(idMatch)
                 .append(",status=").append(status.isEmpty() ? "none" : status)
                 .append(",reason=").append(reason.isEmpty() ? "none" : reason)
@@ -119,6 +108,34 @@ public final class YoutubeDiagnosticStreamExtractor
                 .append(",hls=").append(hasValue(streamingData, "hlsManifestUrl"))
                 .append(",dash=").append(hasValue(streamingData, "dashManifestUrl"))
                 .append(",sabr=").append(hasValue(streamingData, "serverAbrStreamingUrl"))
+                .append("}");
+    }
+
+    private void appendStreamingData(@Nonnull final StringBuilder summary,
+                                     @Nonnull final String label,
+                                     @Nonnull final String fieldName) {
+        final JsonObject streamingData = getPrivateJsonObject(fieldName);
+        final JsonArray formats = streamingData == null
+                ? null : streamingData.getArray("formats");
+        final JsonArray adaptiveFormats = streamingData == null
+                ? null : streamingData.getArray("adaptiveFormats");
+        summary.append("; ").append(label).append("{streamingData=")
+                .append(streamingData != null && !streamingData.isEmpty())
+                .append(",formats=").append(formats == null ? 0 : formats.size())
+                .append(",adaptiveFormats=")
+                .append(adaptiveFormats == null ? 0 : adaptiveFormats.size())
+                .append(",hls=").append(hasValue(streamingData, "hlsManifestUrl"))
+                .append(",dash=").append(hasValue(streamingData, "dashManifestUrl"))
+                .append(",sabr=").append(hasValue(streamingData, "serverAbrStreamingUrl"))
+                .append("}");
+    }
+
+    private void appendResponseState(@Nonnull final StringBuilder summary,
+                                     @Nonnull final String label,
+                                     @Nonnull final String fieldName) {
+        final JsonObject response = getPrivateJsonObject(fieldName);
+        summary.append("; ").append(label).append("{response=")
+                .append(response != null && !response.isEmpty())
                 .append("}");
     }
 

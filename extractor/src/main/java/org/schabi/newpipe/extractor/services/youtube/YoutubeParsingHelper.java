@@ -32,6 +32,7 @@ import com.grack.nanojson.JsonWriter;
 import org.jsoup.nodes.Entities;
 import org.schabi.newpipe.extractor.Image;
 import org.schabi.newpipe.extractor.MetaInfo;
+import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.downloader.CancellableCall;
 import org.schabi.newpipe.extractor.downloader.Downloader;
@@ -198,8 +199,8 @@ YoutubeParsingHelper {
      */
     private static final String TVHTML5_SIMPLY_EMBED_CLIENT_VERSION = "7.20250923.13.00";
     private static final String WEB_CLIENT_VERSION = "2.20241126.01.00";
-    private static final String SAFARI_CLIENT_VERSION = "2.20260114.08.00";
-    static final String SAFARI_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)";
+    public static final String WEB_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36,gzip(gfe)";
+    public static final String MWEB_USER_AGENT = "Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)";
 
     private static String clientVersion;
 
@@ -1560,9 +1561,12 @@ YoutubeParsingHelper {
     }
 
     @Nonnull
-    public static JsonBuilder<JsonObject> prepareSafariJsonBuilder(
+    public static JsonBuilder<JsonObject> prepareJsonPlayerBuilder(
             @Nonnull final Localization localization,
-            @Nonnull final ContentCountry contentCountry) {
+            @Nonnull final ContentCountry contentCountry,
+            @Nonnull final String clientName,
+            @Nonnull final String userAgent)
+            throws IOException, ExtractionException {
         return JsonObject.builder()
                 .object("context")
                     .object("client")
@@ -1570,22 +1574,26 @@ YoutubeParsingHelper {
                         .value("timeZone", "UTC")
                         .value("hl", localization.getLocalizationCode())
                         .value("gl", contentCountry.getCountryCode())
-                        .value("userAgent", SAFARI_USER_AGENT)
-                        .value("clientName", "WEB")
-                        .value("clientVersion", SAFARI_CLIENT_VERSION)
+                        .value("userAgent", userAgent)
+                        .value("clientName", clientName)
+                        .value("clientVersion", getClientVersion())
                     .end()
                 .end();
     }
 
     @Nonnull
-    public static byte[] createSafariPlayerBody(
+    public static byte[] createJsonPlayerBody(
             @Nonnull final Localization localization,
             @Nonnull final ContentCountry contentCountry,
             @Nonnull final String videoId,
             @Nonnull final Integer sts,
-            @Nonnull final String contentPlaybackNonce) {
+            @Nonnull final String contentPlaybackNonce,
+            @Nonnull final String clientName,
+            @Nonnull final String userAgent)
+            throws IOException, ExtractionException {
         return JsonWriter.string(
-                        prepareSafariJsonBuilder(localization, contentCountry)
+                        prepareJsonPlayerBuilder(localization, contentCountry,
+                                clientName, userAgent)
                                 .object("playbackContext")
                                     .object("contentPlaybackContext")
                                         .value("html5Preference", "HTML5_PREF_WANTS")
@@ -1600,20 +1608,181 @@ YoutubeParsingHelper {
                 .getBytes(StandardCharsets.UTF_8);
     }
 
-    public static CancellableCall getSafariPostResponseAsync(final String endpoint,
+    /**
+     * Add a visitor-bound proof-of-origin token to a player request body when a provider is
+     * installed. Provider failures deliberately fall back to the original request so devices
+     * without a working WebView/BotGuard runtime keep the previous extraction behavior.
+     */
+    @Nonnull
+    public static byte[] addSessionPoTokenToPlayerBody(
+            @Nonnull final byte[] body,
+            @Nonnull final Localization localization,
+            @Nonnull final ContentCountry contentCountry) {
+        return prepareSessionPoTokenPlayerRequest(body, localization, contentCountry).getBody();
+    }
+
+    /**
+     * Decorate a player request and retain the exact visitor identity sent with that request.
+     * Callers which consume the player response later must carry this value forward instead of
+     * asking the provider for a potentially different current identity.
+     */
+    @Nonnull
+    public static YoutubePlayerRequest prepareSessionPoTokenPlayerRequest(
+            @Nonnull final byte[] body,
+            @Nonnull final Localization localization,
+            @Nonnull final ContentCountry contentCountry) {
+        try {
+            final JsonObject request = JsonUtils.toJsonObject(new String(body,
+                    StandardCharsets.UTF_8));
+            final JsonObject context = request.getObject("context");
+            final JsonObject client = context == null ? null : context.getObject("client");
+            if (client == null) {
+                return new YoutubePlayerRequest(body, null);
+            }
+            final String originalVisitorData = client.getString("visitorData");
+            final JsonObject existingIntegrity = request.getObject("serviceIntegrityDimensions");
+            if (existingIntegrity != null
+                    && !isNullOrEmpty(existingIntegrity.getString("poToken"))) {
+                return new YoutubePlayerRequest(body, originalVisitorData);
+            }
+
+            final String clientName = client.getString("clientName", "");
+            final YoutubeSessionPoToken result = getSessionPoToken(clientName, localization,
+                    contentCountry);
+            if (result == null || isNullOrEmpty(result.getVisitorData())
+                    || isNullOrEmpty(result.getPoToken())) {
+                return new YoutubePlayerRequest(body, originalVisitorData);
+            }
+
+            client.put("visitorData", result.getVisitorData());
+            final JsonObject integrity = existingIntegrity == null
+                    ? new JsonObject() : existingIntegrity;
+            integrity.put("poToken", result.getPoToken());
+            request.put("serviceIntegrityDimensions", integrity);
+            return new YoutubePlayerRequest(
+                    JsonWriter.string(request).getBytes(StandardCharsets.UTF_8),
+                    result.getVisitorData());
+        } catch (final Exception error) {
+            System.err.println("Could not add session-bound YouTube PO token: "
+                    + error.getClass().getSimpleName() + ": " + error.getMessage());
+            return new YoutubePlayerRequest(body, null);
+        }
+    }
+
+    @Nullable
+    public static YoutubeSessionPoToken getSessionPoToken(
+            @Nonnull final String clientName,
+            @Nonnull final Localization localization,
+            @Nonnull final ContentCountry contentCountry) {
+        final YoutubeSessionPoTokenProvider provider =
+                NewPipe.getYoutubeSessionPoTokenProvider();
+        if (provider == null) {
+            return null;
+        }
+        try {
+            return provider.getSessionPoToken(clientName, localization, contentCountry,
+                    ServiceList.YouTube.hasTokens());
+        } catch (final Exception error) {
+            System.err.println("Could not obtain session-bound YouTube PO token: "
+                    + error.getClass().getSimpleName() + ": " + error.getMessage());
+            return null;
+        }
+    }
+
+    public static CancellableCall getJsonPlayerResponseAsync(final String endpoint,
                                                              final byte[] body,
                                                              final Localization localization,
+                                                             final String clientId,
+                                                             final String userAgent,
                                                              final Downloader.AsyncCallback callback)
+            throws IOException, ExtractionException {
+        return getJsonPlayerResponseAsyncInternal(endpoint, body, localization, clientId, userAgent,
+                callback, false);
+    }
+
+    public static CancellableCall getJsonPlayerResponseAsync(
+            final String endpoint,
+            @Nonnull final YoutubePlayerRequest request,
+            final Localization localization,
+            final String clientId,
+            final String userAgent,
+            final Downloader.AsyncCallback callback)
+            throws IOException, ExtractionException {
+        return getJsonPlayerResponseAsyncInternal(endpoint, request.getBody(), localization,
+                clientId, userAgent, callback, true);
+    }
+
+    private static CancellableCall getJsonPlayerResponseAsyncInternal(
+            final String endpoint,
+            final byte[] body,
+            final Localization localization,
+            final String clientId,
+            final String userAgent,
+            final Downloader.AsyncCallback callback,
+            final boolean playerRequestPrepared)
             throws IOException, ExtractionException {
         final Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", singletonList("application/json"));
-        headers.put("User-Agent", singletonList(SAFARI_USER_AGENT));
-        headers.put("X-YouTube-Client-Name", singletonList("1"));
-        headers.put("X-Youtube-Client-Version", singletonList(SAFARI_CLIENT_VERSION));
+        headers.put("User-Agent", singletonList(userAgent));
+        headers.put("X-YouTube-Client-Name", singletonList(clientId));
+        headers.put("X-Youtube-Client-Version", singletonList(getClientVersion()));
 
         addLoggedInHeaders(headers);
 
-        return getDownloader().postAsync(YOUTUBEI_V1_URL + endpoint + "?" + DISABLE_PRETTY_PRINT_PARAMETER, headers, body, localization, callback);
+        final byte[] requestBody = "player".equals(endpoint) && !playerRequestPrepared
+                ? addSessionPoTokenToPlayerBody(body, localization,
+                        NewPipe.getPreferredContentCountry())
+                : body;
+        return getDownloader().postAsync(YOUTUBEI_V1_URL + endpoint + "?" + DISABLE_PRETTY_PRINT_PARAMETER, headers, requestBody, localization, callback);
+    }
+
+    public static CancellableCall getJsonPlayerResponseAsync(final String endpoint,
+                                                             final byte[] body,
+                                                             final Localization localization,
+                                                             final String clientId,
+                                                             final String clientVersion,
+                                                             final String userAgent,
+                                                             final Downloader.AsyncCallback callback)
+            throws IOException, ExtractionException {
+        return getJsonPlayerResponseAsyncInternal(endpoint, body, localization, clientId,
+                clientVersion, userAgent, callback, false);
+    }
+
+    public static CancellableCall getJsonPlayerResponseAsync(
+            final String endpoint,
+            @Nonnull final YoutubePlayerRequest request,
+            final Localization localization,
+            final String clientId,
+            final String clientVersion,
+            final String userAgent,
+            final Downloader.AsyncCallback callback)
+            throws IOException, ExtractionException {
+        return getJsonPlayerResponseAsyncInternal(endpoint, request.getBody(), localization,
+                clientId, clientVersion, userAgent, callback, true);
+    }
+
+    private static CancellableCall getJsonPlayerResponseAsyncInternal(
+            final String endpoint,
+            final byte[] body,
+            final Localization localization,
+            final String clientId,
+            final String clientVersion,
+            final String userAgent,
+            final Downloader.AsyncCallback callback,
+            final boolean playerRequestPrepared)
+            throws IOException, ExtractionException {
+        final Map<String, List<String>> headers = new HashMap<>();
+        headers.put("Content-Type", singletonList("application/json"));
+        headers.put("User-Agent", singletonList(userAgent));
+        headers.put("X-YouTube-Client-Name", singletonList(clientId));
+        headers.put("X-Youtube-Client-Version", singletonList(clientVersion));
+        addLoggedInHeaders(headers);
+        final byte[] requestBody = "player".equals(endpoint) && !playerRequestPrepared
+                ? addSessionPoTokenToPlayerBody(body, localization,
+                        NewPipe.getPreferredContentCountry())
+                : body;
+        return getDownloader().postAsync(YOUTUBEI_V1_URL + endpoint + "?"
+                + DISABLE_PRETTY_PRINT_PARAMETER, headers, requestBody, localization, callback);
     }
 
     public static Response getWebPlayerResponseSync(@Nonnull final String videoId)
@@ -1633,7 +1802,9 @@ YoutubeParsingHelper {
         addYoutubeHeaders(headers);
         headers.put("Content-Type", singletonList("application/json"));
         addLoggedInHeaders(headers);
-        return getDownloader().post(url, headers, body, localization);
+        return getDownloader().post(url, headers,
+                addSessionPoTokenToPlayerBody(body, localization, ContentCountry.DEFAULT),
+                localization);
     }
 
     public static CancellableCall getWebPlayerResponse(
@@ -1655,8 +1826,10 @@ YoutubeParsingHelper {
         addYoutubeHeaders(headers);
         headers.put("Content-Type", singletonList("application/json"));
         addLoggedInHeaders(headers);
+        final byte[] requestBody = addSessionPoTokenToPlayerBody(body, localization,
+                contentCountry);
         return getDownloader().postAsync(
-                url, headers, body, localization, new Downloader.AsyncCallback() {
+                url, headers, requestBody, localization, new Downloader.AsyncCallback() {
                     @Override
                     public void onSuccess(Response response) throws ExtractionException {
                         JsonObject webPlayerResponse;
@@ -1688,8 +1861,13 @@ YoutubeParsingHelper {
                            streamExtractor.watchDataCache.startAt = streamExtractor.getStartAt();
                         } catch (Exception e) {
                             e.printStackTrace();
-                            streamExtractor.errors.add(e);
+                            streamExtractor.addError(e);
                         }
+                    }
+
+                    @Override
+                    public void onError(final Exception error) {
+                        streamExtractor.addError(error);
                     }
                 });
     }
