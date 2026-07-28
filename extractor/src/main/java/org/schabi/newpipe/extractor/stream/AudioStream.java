@@ -23,6 +23,7 @@ package org.schabi.newpipe.extractor.stream;
 import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.services.youtube.ItagItem;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -79,6 +80,9 @@ public final class AudioStream extends Stream {
         private String audioLocale;
         @Nullable
         private AudioTrackType audioTrackType;
+        private long availableAt = AVAILABLE_AT_UNKNOWN;
+        @Nullable
+        private Serializable deliveryMethodInfo;
         /**
          * Create a new {@link Builder} instance with its default values.
          */
@@ -267,6 +271,16 @@ public final class AudioStream extends Stream {
             return this;
         }
 
+        public Builder setAvailableAt(final long availableAt) {
+            this.availableAt = availableAt;
+            return this;
+        }
+
+        public Builder setDeliveryMethodInfo(@Nullable final Serializable deliveryMethodInfo) {
+            this.deliveryMethodInfo = deliveryMethodInfo;
+            return this;
+        }
+
         /**
          * Build an {@link AudioStream} using the builder's current values.
          *
@@ -301,7 +315,8 @@ public final class AudioStream extends Stream {
 
             return new AudioStream(id, content, isUrl, mediaFormat, deliveryMethod, averageBitrate, codec,
                     bitrate, initStart, initEnd, indexStart, indexEnd, manifestUrl, itagItem,
-                    quality, audioTrackId, audioTrackName, audioLocale, audioTrackType);
+                    quality, audioTrackId, audioTrackName, audioLocale, audioTrackType, availableAt,
+                    deliveryMethodInfo);
         }
     }
 
@@ -342,8 +357,11 @@ public final class AudioStream extends Stream {
                         @Nullable final String audioTrackId,
                         @Nullable final String audioTrackName,
                         @Nullable final String audioLocale,
-                        @Nullable final AudioTrackType audioTrackType) {
-        super(id, content, isUrl, format, deliveryMethod, manifestUrl);
+                        @Nullable final AudioTrackType audioTrackType,
+                        final long availableAt,
+                        @Nullable final Serializable deliveryMethodInfo) {
+        super(id, content, isUrl, format, deliveryMethod, manifestUrl, availableAt,
+                deliveryMethodInfo);
         if (itagItem != null) {
             this.itagItem = itagItem;
             this.itag = itagItem.id;

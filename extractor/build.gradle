@@ -19,11 +19,19 @@ dependencies {
     implementation "com.squareup.okhttp3:okhttp:4.10.0"
     implementation "org.brotli:dec:0.1.1"
     implementation 'org.apache.commons:commons-lang3:3.8.1'
-    implementation 'commons-codec:commons-codec:1.16.0'
     compileOnly "org.json:json:20231013"
 
 
     // do not upgrade to 1.7.14, since in 1.7.14 Rhino uses the `SourceVersion` class, which is not
     // available on Android (even when using desugaring), and `NoClassDefFoundError` is thrown
     implementation 'org.mozilla:rhino:1.7.13'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.85'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.13.4'
+}
+
+tasks.named('test') {
+    enabled = true
+    group = 'verification'
+    useJUnitPlatform()
 }
